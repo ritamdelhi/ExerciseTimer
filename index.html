@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Workout Timer</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f2f2f2;
+            text-align: center;
+        }
+
+        select,
+        button {
+            margin: 10px;
+            padding: 10px;
+            font-size: 1rem;
+        }
+
+        .timer-box {
+            margin: 20px auto;
+            padding: 20px;
+            border: 2px solid #333;
+            width: 300px;
+            background: white;
+            border-radius: 10px;
+        }
+
+        .progress {
+            height: 20px;
+            background: #ddd;
+            margin: 10px 0;
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: green;
+            width: 0%;
+            transition: width 1s linear;
+        }
+    </style>
+</head>
+
+<body>
+    <h3>Workout Timer</h3>
+    <label for="restTimeInput">Rest Between Sets (sec): </label>
+    <input type="number" id="restTimeInput" min="5" max="300" value="30" />
+    <br />
+    <select id="category">
+        <option value="">Select Category</option>
+    </select>
+
+    <button id="startBtn">Start</button><br />
+    <button id="pauseBtn">⏸ Pause</button>
+    <button id="skipBtn">⏭ Next</button>
+    <button id="resetBtn">🔁 Reset</button>
+
+    <div class="timer-box" id="workoutBox" style="display:none;">
+        <h1 id="exerciseName"></h1>
+        <p>Set <span id="currentSet"></span> / <span id="totalSets"></span></p>
+        <p>Reps: <span id="repsCount"></span></p>
+        <p>Time Left: <span id="timeLeft"></span> sec</p>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+    </div>
+    <div id="workoutPreview" style="margin-top: 2px;"></div>
+
+    <audio id="voice" src=""></audio>
+
+    <script>
+        const workouts = {
+            arms: {
+                ArmRotation: [20, 3, 2],
+                FloorPress: [15, 3, 4],
+                BicepCurls: [12, 3, 4],
+                TricepDips: [10, 3, 4],
+                ShoulderPress: [12, 3, 4],
+                LateralRaises: [12, 3, 3],
+                PushUps: [15, 3, 3],
+                ReverseCurls: [12, 3, 4],
+                OverheadExtension: [10, 3, 4],
+                HammerCurls: [12, 3, 4]
+            },
+
+            legs: {
+                Squats: [15, 3, 3],
+                SumoSquats: [12, 3, 4],
+                Lunges: [10, 3, 4],
+                StepUps: [10, 3, 4],
+                WallSit: [1, 3, 30], // 30 sec hold
+                CalfRaises: [20, 3, 2],
+                GluteBridge: [15, 3, 3],
+                BulgarianSplitSquat: [8, 3, 5],
+                SideLunges: [10, 3, 4],
+                SkaterJumps: [15, 3, 3]
+            },
+
+            fatburning: {
+                JumpingJacks: [30, 3, 1],
+                HighKnees: [20, 3, 1],
+                MountainClimbers: [20, 3, 1],
+                Burpees: [10, 3, 3],
+                JumpSquats: [12, 3, 3],
+                FastFeet: [20, 3, 1],
+                Punches: [30, 3, 1],
+                JumpRope: [1, 3, 60],
+                QuickLunges: [15, 3, 2],
+                SpeedSkaters: [20, 3, 1]
+            },
+
+            abs: {
+                Crunches: [20, 3, 2],
+                LegRaises: [15, 3, 3],
+                Plank: [1, 3, 30], // 30 sec hold
+                BicycleCrunches: [20, 3, 2],
+                RussianTwist: [20, 3, 2],
+                VUps: [15, 3, 3],
+                FlutterKicks: [30, 3, 1],
+                SidePlankLeft: [1, 2, 30],
+                SidePlankRight: [1, 2, 30],
+                ToeTouches: [20, 3, 2],
+                HeelTaps: [20, 3, 2],
+                PlankHipDips: [20, 3, 2]
+            },
+
+            stretching: {
+                NeckRolls: [5, 2, 5],
+                ArmCrossStretch: [1, 2, 30],
+                ShoulderStretch: [1, 2, 30],
+                SideBend: [10, 2, 3],
+                CatCow: [10, 2, 4],
+                CobraStretch: [1, 2, 30],
+                HamstringStretch: [1, 2, 30],
+                ButterflyStretch: [1, 2, 30],
+                CalfStretch: [1, 2, 30],
+                QuadStretch: [1, 2, 30],
+                SpineTwist: [10, 2, 4],
+                DownwardDog: [1, 2, 30]
+            },
+
+            kneeStrengthening: {
+                WallSit: [1, 3, 30],
+                SeatedLegRaise: [15, 3, 3],
+                HeelSlide: [10, 3, 4],
+                QuadSet: [10, 3, 4],
+                StepUps: [10, 3, 4],
+                TerminalKneeExtension: [12, 3, 4],
+                HamstringCurl: [15, 3, 3],
+                StandingCalfRaise: [20, 3, 2],
+                LegExtensionHold: [1, 3, 30],
+                ResistanceBandKneePress: [15, 3, 3]
+            },
+
+            weightloss: {
+                Burpees: [10, 3, 3],
+                JumpingJacks: [30, 3, 1],
+                HighKnees: [25, 3, 1],
+                MountainClimbers: [30, 3, 1],
+                PlankToPushUp: [10, 3, 4],
+                JumpSquats: [15, 3, 3],
+                Skaters: [20, 3, 2],
+                PunchKicks: [30, 3, 1],
+                RopeSlams: [30, 3, 1],
+                JumpTwists: [20, 3, 1],
+                BearCrawl: [1, 3, 30],
+                JogInPlace: [1, 3, 60]
+            },
+
+            plusSizeFriendly: {
+                MarchingInPlace: [30, 3, 1],         // low-impact cardio
+                WallPushUps: [15, 3, 2],
+                SeatedKneeLifts: [20, 3, 1],
+                StandingSideLegRaise: [15, 3, 2],
+                ArmCircles: [30, 3, 1],
+                StepTouchSideToSide: [20, 3, 2],
+                SlowMountainClimbers: [10, 3, 2],    // done on incline or wall
+                SeatedTwists: [20, 3, 1],
+                WallSitHold: [1, 2, 20],             // gentle hold
+                GluteBridge: [15, 3, 3],
+                SeatedPunches: [30, 3, 1],
+                ModifiedPlank: [1, 2, 20]            // knees on floor
+            },
+            kneeHealthRecovery: {
+                QuadSet: [10, 3, 4],                // tighten thigh while lying/sitting
+                SeatedLegExtension: [15, 3, 3],     // extend leg while seated
+                HeelSlide: [10, 3, 4],              // slide heel to stretch knee
+                GluteBridge: [15, 3, 4],            // strengthens hamstrings + glutes
+                CalfRaises: [20, 3, 2],             // improves ankle and knee stability
+                StandingHamstringCurl: [15, 3, 3],  // curls heel up slowly
+                WallSitHold: [1, 3, 20],            // low-intensity quad builder
+                StepUpsLow: [10, 2, 5],             // short step platform
+                SeatedHeelRaise: [20, 3, 2],        // calf mobility
+                ResistanceBandKneePress: [15, 3, 3],// banded knee strengthening
+                TerminalKneeExtension: [15, 3, 3],  // use band or towel
+                AnklePump: [30, 3, 1]               // improves blood flow, very gentle
+            }
+
+
+        };
+
+
+        const categorySelect = document.getElementById("category");
+        for (let key in workouts) {
+            const option = document.createElement("option");
+            option.value = key;
+            option.textContent = key.replace(/([A-Z])/g, ' $1').toUpperCase();
+            categorySelect.appendChild(option);
+        }
+
+        const voice = document.getElementById("voice");
+        const pauseBtn = document.getElementById("pauseBtn");
+        let currentWorkout = [];
+        let currentExerciseIndex = 0;
+        let currentSet = 1;
+        let currentRep = 0;
+        let timer;
+        let paused = false;
+        let restBetweenSets = 30;
+        let restMode = false;
+        let totalReps, totalSets, repDuration;
+        let resumeCallback = null;
+        let speechQueue = [];
+        let isSpeaking = false;
+        let currentUtterance = null;
+
+        function speak(text, force = false) {
+            if (force && currentUtterance) {
+                window.speechSynthesis.cancel();
+                isSpeaking = false;
+                currentUtterance = null;
+            }
+            speechQueue.push(text);
+            processSpeechQueue();
+        }
+
+        function processSpeechQueue() {
+            if (isSpeaking || paused || speechQueue.length === 0) return;
+            const text = speechQueue.shift();
+            currentUtterance = new SpeechSynthesisUtterance(text);
+            isSpeaking = true;
+            currentUtterance.onend = () => {
+                isSpeaking = false;
+                currentUtterance = null;
+                processSpeechQueue();
+            };
+            window.speechSynthesis.speak(currentUtterance);
+        }
+
+        function startWorkout() {
+            const category = categorySelect.value;
+            if (!category) return alert("Please select a category");
+            const val = parseInt(restTimeInput.value);
+            restBetweenSets = (val && val >= 2) ? val : 30;
+
+            currentWorkout = Object.entries(workouts[category]);
+            const preview = document.getElementById("workoutPreview");
+            let html = `<h3>Workout Plan:</h3><ul style="list-style: none; padding: 0;">`;
+            currentWorkout.forEach(([exercise, [reps, sets, duration]]) => {
+                html += `<li>💪 <strong>${exercise}</strong>: ${sets} sets × ${reps} reps × ${duration}s each</li>`;
+            });
+            html += `</ul>`;
+            preview.innerHTML = html;
+
+            currentExerciseIndex = 0;
+            currentSet = 1;
+            currentRep = 0;
+            restMode = false;
+            paused = false;
+            speechQueue = [];
+            window.speechSynthesis.cancel();
+            document.getElementById("workoutBox").style.display = "block";
+            nextRep();
+        }
+
+        function nextRep() {
+            if (paused) return;
+
+            if (currentExerciseIndex >= currentWorkout.length) {
+                speak("Workout complete!", true);
+                resetWorkout();
+                return;
+            }
+
+            let [name, [reps, sets, duration]] = currentWorkout[currentExerciseIndex];
+            totalReps = reps;
+            totalSets = sets;
+            repDuration = duration;
+
+            document.getElementById("exerciseName").textContent = name;
+            document.getElementById("currentSet").textContent = currentSet;
+            document.getElementById("totalSets").textContent = totalSets;
+            document.getElementById("repsCount").textContent = totalReps;
+
+            if (currentRep === 0 && currentSet) {
+                speak(`Exercise: ${name}`, true);
+                setTimeout(() => {
+                    currentRep++;
+                    document.getElementById("timeLeft").textContent = repDuration;
+                    speak(`${currentRep}`, true);
+                    runTimer(repDuration, () => nextRep());
+                }, 3000); // Delay before first rep
+                return;
+            }
+
+            if (currentRep < totalReps) {
+                currentRep++;
+                document.getElementById("timeLeft").textContent = repDuration;
+                speak(`${currentRep}`, true);
+                runTimer(repDuration, () => nextRep());
+            } else if (currentSet < totalSets) {
+                restMode = true;
+                currentSet++;
+                currentRep = 0;
+                speak("Rest for a few seconds", true);
+                runTimer(restBetweenSets, () => nextRep());
+            } else {
+                currentExerciseIndex++;
+                currentSet = 1;
+                currentRep = 0;
+                nextRep();
+            }
+        }
+
+        function runTimer(seconds, callback) {
+            let time = seconds;
+            const bar = document.getElementById("progressBar");
+            clearInterval(timer);
+            resumeCallback = () => runTimer(time, callback);
+
+            timer = setInterval(() => {
+                if (paused) return;
+                time--;
+                document.getElementById("timeLeft").textContent = time;
+                bar.style.width = `${((seconds - time) / seconds) * 100}%`;
+
+                if (time <= 0) {
+                    clearInterval(timer);
+                    bar.style.width = "0%";
+                    callback();
+                }
+            }, 1000);
+        }
+
+        function pauseWorkout() {
+            paused = !paused;
+            pauseBtn.innerHTML = paused ? "▶️ Resume" : "⏸ Pause";
+            if (paused) {
+                if (currentUtterance) window.speechSynthesis.cancel();
+                speechQueue = [];
+            } else {
+                processSpeechQueue();
+                if (resumeCallback) resumeCallback();
+            }
+        }
+
+        function skipSet() {
+            clearInterval(timer);
+            if (currentUtterance) window.speechSynthesis.cancel();
+            isSpeaking = false;
+            currentUtterance = null;
+            speechQueue = [];
+            restMode = false;
+            currentRep = totalReps;
+            nextRep();
+        }
+
+        function resetWorkout() {
+            clearInterval(timer);
+            paused = false;
+            pauseBtn.innerHTML = "⏸ Pause";
+            currentWorkout = [];
+            currentExerciseIndex = 0;
+            currentSet = 1;
+            currentRep = 0;
+            restMode = false;
+            resumeCallback = null;
+            if (currentUtterance) window.speechSynthesis.cancel();
+            isSpeaking = false;
+            currentUtterance = null;
+            speechQueue = [];
+            document.getElementById("workoutBox").style.display = "none";
+            document.getElementById("progressBar").style.width = "0%";
+        }
+
+        document.getElementById("startBtn").onclick = startWorkout;
+        pauseBtn.onclick = pauseWorkout;
+        document.getElementById("skipBtn").onclick = skipSet;
+        document.getElementById("resetBtn").onclick = resetWorkout;
+    </script>
+</body>
+
+</html>
